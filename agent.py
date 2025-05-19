@@ -375,6 +375,11 @@ def build_graph(provider: str = "groq"):
     if provider == "groq":
         # Groq https://console.groq.com/docs/models
         llm = ChatGroq(model="qwen-qwq-32b", temperature=0)
+        
+    elif provider == "google":
+        # Google Gemini
+        llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
+        
     elif provider == "huggingface":
         # TODO: Add huggingface endpoint
         llm = ChatHuggingFace(
