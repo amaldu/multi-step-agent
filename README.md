@@ -13,3 +13,27 @@ hf_oauth_expiration_minutes: 480
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+
+
+## 🛠️ Setup instructions
+
+Follow these steps to set up your Python environment:
+
+### 1. Create virtual environment
+
+```bash
+python3.11 -m venv agentsvenv
+```
+
+
+### 2. Activate virtual environment
+
+```bash
+source agentsvenv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
