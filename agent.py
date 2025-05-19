@@ -7,15 +7,14 @@ import re
 import json
 import requests
 from urllib.parse import urlparse
-import pytesseract
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import cmath
 import pandas as pd
 import uuid
 import numpy as np
-from code_interpreter import CodeInterpreter
-
-interpreter_instance = CodeInterpreter()
+from datetime import datetime
+import pytz
+import pytesseract
 
 from image_processing import *
 
