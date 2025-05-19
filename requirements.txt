@@ -17,3 +17,4 @@ pgvector
 python-dotenv
 pytesseract
 matplotlib
+pytesseract

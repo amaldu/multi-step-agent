@@ -16,7 +16,6 @@ from datetime import datetime
 import pytz
 import pytesseract
 
-from image_processing import *
 
 """Langraph"""
 from langgraph.graph import START, StateGraph, MessagesState
