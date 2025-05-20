@@ -22,7 +22,7 @@ Follow these steps to set up your Python environment:
 ### 1. Create virtual environment
 
 ```bash
-python3.11 -m venv agentsvenv
+python3.10 -m venv agentsvenv
 ```
 
 
