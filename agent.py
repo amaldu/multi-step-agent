@@ -113,8 +113,8 @@ supabase: Client = create_client(
 vector_store = SupabaseVectorStore(
     client=supabase,
     embedding=embeddings,
-    table_name="documents2",
-    query_name="match_documents_2",
+    table_name="documents",
+    query_name="match_documents",
 )
 create_retriever_tool = create_retriever_tool(
     retriever=vector_store.as_retriever(),
