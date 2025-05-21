@@ -21,8 +21,7 @@ import pytesseract
 from langgraph.graph import START, StateGraph, MessagesState
 
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+
 from langchain_huggingface import (
     ChatHuggingFace,
     HuggingFaceEndpoint,
