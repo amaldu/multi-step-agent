@@ -131,7 +131,7 @@ tools = [
 
 
 # Build graph function
-def build_graph(provider:str = "huggingface"):
+def build_graph():
     llm = ChatHuggingFace(
         llm=HuggingFaceEndpoint(
             repo_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
