@@ -132,32 +132,19 @@ tools = [
 
 
 # Build graph function
-def build_graph(provider: str = "groq"):
-    """Build the graph"""
-    # Load environment variables from .env file
-    if provider == "groq":
-        # Groq https://console.groq.com/docs/models
-        llm = ChatGroq(model="qwen-qwq-32b", temperature=0)
-        
-    elif provider == "google":
-        # Google Gemini
-        llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
-        
-    elif provider == "huggingface":
-        # TODO: Add huggingface endpoint
-        llm = ChatHuggingFace(
-            llm=HuggingFaceEndpoint(
-                repo_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-                task="text-generation", 
-                max_new_tokens=1024,
-                do_sample=False,
-                repetition_penalty=1.03,
-                temperature=0,
-            ),
-            verbose=True,
-        )
-    else:
-        raise ValueError("Invalid provider. Choose 'groq' or 'huggingface'.")
+def build_graph(provider: str):
+    llm = ChatHuggingFace(
+        llm=HuggingFaceEndpoint(
+            repo_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            task="text-generation", 
+            max_new_tokens=1024,
+            do_sample=False,
+            repetition_penalty=1.03,
+            temperature=0,
+        ),
+        verbose=True,
+    )
+
     # Bind tools to LLM
     llm_with_tools = llm.bind_tools(tools)
 
