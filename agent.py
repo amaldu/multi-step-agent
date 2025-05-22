@@ -96,7 +96,7 @@ def wiki_search(query: str) -> str:
 
 
 # load the system prompt from the file
-with open("system_prompt.txt", "r", encoding="utf-8") as f:
+with open("data/system_prompt.txt", "r", encoding="utf-8") as f:
     system_prompt = f.read()
 print(system_prompt)
 
