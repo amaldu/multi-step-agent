@@ -1,11 +1,39 @@
+
+Hugging Face's logo Hugging Face
+
+Models
+Datasets
+Spaces
+Docs
+Pricing
+
+Spaces:
+agents-course
+/
+Final_Assignment_Template
+App
+Files
+Community
+86
+Final_Assignment_Template
+/ app.py
+Jofthomas's picture
+Jofthomas
+Update app.py
+81917a3
+verified
+29 days ago
+raw
+history
+blame
+contribute
+delete
+8.78 kB
 import os
 import gradio as gr
 import requests
 import inspect
 import pandas as pd
-import time
-from langchain_core.messages import HumanMessage
-from agent import build_graph
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -16,14 +44,11 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
-        self.graph = build_graph()
-        
     def __call__(self, question: str) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}...")
-        messages = [HumanMessage(content=question)]
-        messages = self.graph.invoke({"messages": messages})
-        answer = messages['messages'][-1].content
-        return answer
+        fixed_answer = "This is a default answer."
+        print(f"Agent returning fixed answer: {fixed_answer}")
+        return fixed_answer
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
@@ -152,11 +177,9 @@ with gr.Blocks() as demo:
     gr.Markdown(
         """
         **Instructions:**
-
         1.  Please clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc ...
         2.  Log in to your Hugging Face account using the button below. This uses your HF username for submission.
         3.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
-
         ---
         **Disclaimers:**
         Once clicking on the "submit button, it can take quite some time ( this is the time for the agent to go through all the questions).
@@ -199,4 +222,4 @@ if __name__ == "__main__":
     print("-"*(60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for Basic Agent Evaluation...")
-    demo.launch(debug=True, share=True)
+    demo.launch(debug=True, share=False)
