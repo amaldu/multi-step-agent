@@ -1,39 +1,10 @@
-
-Hugging Face's logo Hugging Face
-
-Models
-Datasets
-Spaces
-Docs
-Pricing
-
-Spaces:
-agents-course
-/
-Final_Assignment_Template
-App
-Files
-Community
-86
-Final_Assignment_Template
-/ app.py
-Jofthomas's picture
-Jofthomas
-Update app.py
-81917a3
-verified
-29 days ago
-raw
-history
-blame
-contribute
-delete
-8.78 kB
 import os
 import gradio as gr
 import requests
 import inspect
 import pandas as pd
+import time
+from agent import BasicAgent
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -41,14 +12,14 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 
 # --- Basic Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
-class BasicAgent:
-    def __init__(self):
-        print("BasicAgent initialized.")
-    def __call__(self, question: str) -> str:
-        print(f"Agent received question (first 50 chars): {question[:50]}...")
-        fixed_answer = "This is a default answer."
-        print(f"Agent returning fixed answer: {fixed_answer}")
-        return fixed_answer
+# class BasicAgent:
+#     def __init__(self):
+#         print("BasicAgent initialized.")
+#     def __call__(self, question: str) -> str:
+#         print(f"Agent received question (first 50 chars): {question[:50]}...")
+#         fixed_answer = "This is a default answer."
+#         print(f"Agent returning fixed answer: {fixed_answer}")
+#         return fixed_answer
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
@@ -104,19 +75,29 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
     results_log = []
     answers_payload = []
     print(f"Running agent on {len(questions_data)} questions...")
+    skip_tasks = ["a1e91b78-d3d8-4675-bb8d-62741b4b68a6", "9d191bce-651d-4746-be2d-7ef8ecadb9c2"]
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
+        if task_id in skip_tasks:
+            print(f"Skipping task {task_id} as per skip list.")
+            answers_payload.append({"task_id": task_id, "submitted_answer": "SKIPPED"})
+            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": "SKIPPED"})
+            continue
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
         try:
-            submitted_answer = agent(question_text)
+            agent = BasicAgent()
+            submitted_answer = agent(question=question_text, task_id=task_id) # agent(question_text, task_id)
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
             results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
         except Exception as e:
              print(f"Error running agent on task {task_id}: {e}")
              results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": f"AGENT ERROR: {e}"})
+        
+        # Cool down to avoid rate limiting
+        time.sleep(15)
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
@@ -177,9 +158,11 @@ with gr.Blocks() as demo:
     gr.Markdown(
         """
         **Instructions:**
+
         1.  Please clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc ...
         2.  Log in to your Hugging Face account using the button below. This uses your HF username for submission.
         3.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
+
         ---
         **Disclaimers:**
         Once clicking on the "submit button, it can take quite some time ( this is the time for the agent to go through all the questions).
@@ -222,4 +205,4 @@ if __name__ == "__main__":
     print("-"*(60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for Basic Agent Evaluation...")
-    demo.launch(debug=True, share=False)
+    demo.launch(debug=True, share=True)

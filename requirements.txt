@@ -1,5 +1,14 @@
 gradio
 requests
+gradio[oauth]
+langchain
+langgraph
+langchain-google-genai
+langchain-tavily
+langchain-community
+wikipedia
+beautifulsoup4
+langchain_experimental
 pandas
-
-
+openpyxl
+tabulate
