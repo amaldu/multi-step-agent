@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-from langchain_core.messages import SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from langgraph.prebuilt import ToolNode
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_tavily import TavilySearch
@@ -104,7 +104,7 @@ class BasicAgent:
         print(f"Agent received question: {question}")
         inputs = {
             "question": question,
-            "messages": [],
+            "messages": [HumanMessage(content=question)],
         }
         final_state = self.app.invoke(inputs)
         last_message = final_state["messages"][-1]
