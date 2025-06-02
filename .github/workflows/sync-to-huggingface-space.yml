@@ -16,7 +16,7 @@ jobs:
           lfs: true
       - name: Push to Space
         run: |
-            git push -f https://maldu:${{ secrets.HF_AGENTS_PROJECT }}@huggingface.co/spaces/maldu/final_project_agents main
+            git push -f https://maldu:${{ secrets.HF_AGENTS_PROJECT_TOKEN }}@huggingface.co/spaces/maldu/final_project_agents main
 
 
 
