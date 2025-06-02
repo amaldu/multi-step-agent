@@ -29,7 +29,6 @@ class AgentState(TypedDict):
     final_answer: Optional[str]
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-# Herramientas
 @tool
 def add(a: int, b: int):
     """Adds two numbers"""
@@ -38,8 +37,7 @@ def add(a: int, b: int):
 @tool
 def multiply(a: int, b: int):
     """Multiplies two numbers"""
-    return a * b  # Corrige: antes decía `a + b`
-
+    return a * b  
 tavily_search = TavilySearch(tavily_api_key=TAVILY_KEY, max_results=5, topic="general", include_answer=True)
 tools = [add, multiply, tavily_search]
 
@@ -102,7 +100,7 @@ class BasicAgent:
         graph.add_edge("tools", "mr_agent")
         self.app = graph.compile()
 
-    def __call__(self, question: str) -> str:
+    def __call__(self, question: str, **kwargs) -> str:
         print(f"Agent received question: {question}")
         inputs = {
             "question": question,
@@ -112,6 +110,7 @@ class BasicAgent:
         last_message = final_state["messages"][-1]
         print(f"Final answer: {last_message.content}")
         return last_message.content
+
     
     
 def run_and_submit_all( profile: gr.OAuthProfile | None):
