@@ -50,12 +50,23 @@ def python_interpreter(code: str):
     repl = PythonREPLTool()
     return repl.run(code)
 
+
 @tool
-def is_reversed(text: str) -> bool:
-    """ This function reverses common terms and tries to find out if the question is reversed, then reads it"""
+def is_reversed(text: str) -> str:
+    """
+    Detects if a text is likely written backwards and returns it reversed letter by letter.
+    If it’s not reversed, returns the original text.
+    """
     common_words = ["the", "you", "me", "if"]
     reversed_words = [word[::-1] for word in common_words]
-    return sum(word in text for word in reversed_words) >= 2  
+
+    reversed_likelihood = sum(word in text.lower() for word in reversed_words)
+
+    if reversed_likelihood >= 2:
+        return text[::-1]  
+    else:
+        return text 
+
 
 
 tavily_search = TavilySearch(tavily_api_key=TAVILY_KEY, max_results=5, topic="general", include_answer=True)
@@ -90,46 +101,7 @@ class BasicAgent:
             temperature=0,
             google_api_key=GOOGLE_API_KEY
         ).bind_tools(tools)
-
-        def model_call(state: AgentState) -> AgentState:
-            system_prompt = SystemMessage(content=
-                                        """You are a general AI assistant.
-                                            Your ONLY task is to give the FINAL ANSWER, with NO explanation or reasoning. 
-                                            Your response must be a single line that contains:
-                                            - only the final answer,
-                                            - no introduction,
-                                            - no explanation,
-                                            - no reasoning,
-                                            - no formatting,
-                                            - no punctuation (unless part of the required format like commas in lists),
-                                            - no text like 'Here's the list' or 'Okay, I understand'.
-
-                                            Follow this strictly. If asked for a list, return a comma-separated list in alphabetical order.
-
-                                            I will now ask a question:
-                                            """
-            )
-            time.sleep(12)
-            try:
-                response = self.llm.invoke([system_prompt] + state["messages"])
-                return {"messages": [response]}
-            except Exception as e:
-                if "429" in str(e):
-                    print("Rate limit hit. Sleeping extra to avoid rate limit...")
-                    time.sleep(20)
-                    response = self.llm.invoke([system_prompt] + state["messages"])
-                    return {"messages": [response]}
-                else:
-                    raise e
-
-        def should_continue(state: AgentState):
-            messages = state["messages"]
-            last_message = messages[-1]
-            if not last_message.tool_calls:
-                return "end"
-            else:
-                return "continue"
-
+        self.app = RunnableLambda(self.model_call)
         graph = StateGraph(AgentState)
         graph.add_node("mr_agent", model_call)
         graph.add_node("tools", ToolNode(tools=tools))
@@ -148,19 +120,57 @@ class BasicAgent:
         graph.add_edge("tools", "mr_agent")
         self.app = graph.compile()
 
-    def __call__(self, question: str = "", **kwargs) -> str:
+    def model_call(state: AgentState) -> AgentState:
+        system_prompt = SystemMessage(content=
+                                    """You are a general AI assistant.
+                                        Your ONLY task is to give the FINAL ANSWER, with NO explanation or reasoning. 
+                                        Your response must be a single line that contains:
+                                        - only the final answer,
+                                        - no introduction,
+                                        - no explanation,
+                                        - no reasoning,
+                                        - no formatting,
+                                        - no punctuation (unless part of the required format like commas in lists),
+                                        - no text like 'Here's the list' or 'Okay, I understand'.
+
+                                        Follow this strictly. If asked for a list, return a comma-separated list in alphabetical order.
+
+                                        I will now ask a question:
+                                        """
+        )
+        time.sleep(12)
+        try:
+            response = self.llm.invoke([system_prompt] + state["messages"])
+            return {"messages": [response]}
+        except Exception as e:
+            if "429" in str(e):
+                print("Rate limit hit. Sleeping extra to avoid rate limit...")
+                time.sleep(20)
+                response = self.llm.invoke([system_prompt] + state["messages"])
+                return {"messages": [response]}
+            else:
+                raise e
+
+    def should_continue(state: AgentState):
+        messages = state["messages"]
+        last_message = messages[-1]
+        if not last_message.tool_calls:
+            return "end"
+        else:
+            return "continue"
+
+    
+
+    def __call__(self, question: str, **kwargs) -> str:
         print(f"Agent received question: {question}")
-        
         inputs = {
             "question": question,
             "messages": [],
         }
-
         final_state = self.app.invoke(inputs)
         last_message = final_state["messages"][-1]
         print(f"Final answer: {last_message.content}")
         return last_message.content
-
 
     
     
