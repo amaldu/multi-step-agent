@@ -63,13 +63,23 @@ class BasicAgent:
 
         def model_call(state: AgentState) -> AgentState:
             system_prompt = SystemMessage(content=
-                                        """You are a general AI assistant. 
-                                            I will ask you a question. 
-                                            Report your thoughts, and give your FINAL ANSWER directly without using any template. 
-                                            YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. 
-                                            If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
-                                            If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
-                                            If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.""")
+                                        """You are a general AI assistant.
+                                            Your ONLY task is to give the FINAL ANSWER, with NO explanation or reasoning. 
+                                            Your response must be a single line that contains:
+                                            - only the final answer,
+                                            - no introduction,
+                                            - no explanation,
+                                            - no reasoning,
+                                            - no formatting,
+                                            - no punctuation (unless part of the required format like commas in lists),
+                                            - no text like 'Here's the list' or 'Okay, I understand'.
+
+                                            Follow this strictly. If asked for a list, return a comma-separated list in alphabetical order.
+
+                                            I will now ask a question:
+                                            """
+            )
+            time.sleep(12)
 
             response = self.llm.invoke([system_prompt] + state["messages"])
             return {"messages": [response]}
