@@ -55,7 +55,7 @@ def python_interpreter(code: str):
 def is_reversed(text: str) -> str:
     """
     Detects if a text is likely written backwards and returns it reversed letter by letter.
-    If it’s not reversed, returns the original text.
+    If it is not reversed, returns the original text.
     """
     common_words = ["the", "you", "me", "if"]
     reversed_words = [word[::-1] for word in common_words]
@@ -101,7 +101,28 @@ class BasicAgent:
             temperature=0,
             google_api_key=GOOGLE_API_KEY
         ).bind_tools(tools)
-        self.app = RunnableLambda(self.model_call)
+
+        def model_call(state: AgentState) -> AgentState:
+            system_prompt = SystemMessage(content=
+                                        """You are a general AI assistant. 
+                                            I will ask you a question. 
+                                            Report your thoughts, and give your FINAL ANSWER directly without using any template. 
+                                            YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. 
+                                            If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
+                                            If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
+                                            If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.""")
+
+            response = self.llm.invoke([system_prompt] + state["messages"])
+            return {"messages": [response]}
+
+        def should_continue(state: AgentState):
+            messages = state["messages"]
+            last_message = messages[-1]
+            if not last_message.tool_calls:
+                return "end"
+            else:
+                return "continue"
+
         graph = StateGraph(AgentState)
         graph.add_node("mr_agent", model_call)
         graph.add_node("tools", ToolNode(tools=tools))
@@ -120,52 +141,11 @@ class BasicAgent:
         graph.add_edge("tools", "mr_agent")
         self.app = graph.compile()
 
-    def model_call(state: AgentState) -> AgentState:
-        system_prompt = SystemMessage(content=
-                                    """You are a general AI assistant.
-                                        Your ONLY task is to give the FINAL ANSWER, with NO explanation or reasoning. 
-                                        Your response must be a single line that contains:
-                                        - only the final answer,
-                                        - no introduction,
-                                        - no explanation,
-                                        - no reasoning,
-                                        - no formatting,
-                                        - no punctuation (unless part of the required format like commas in lists),
-                                        - no text like 'Here's the list' or 'Okay, I understand'.
-
-                                        Follow this strictly. If asked for a list, return a comma-separated list in alphabetical order.
-
-                                        I will now ask a question:
-                                        """
-        )
-        time.sleep(12)
-        try:
-            response = self.llm.invoke([system_prompt] + state["messages"])
-            return {"messages": [response]}
-        except Exception as e:
-            if "429" in str(e):
-                print("Rate limit hit. Sleeping extra to avoid rate limit...")
-                time.sleep(20)
-                response = self.llm.invoke([system_prompt] + state["messages"])
-                return {"messages": [response]}
-            else:
-                raise e
-
-    def should_continue(state: AgentState):
-        messages = state["messages"]
-        last_message = messages[-1]
-        if not last_message.tool_calls:
-            return "end"
-        else:
-            return "continue"
-
-    
-
     def __call__(self, question: str, **kwargs) -> str:
         print(f"Agent received question: {question}")
         inputs = {
             "question": question,
-            "messages": [],
+            "messages": [HumanMessage(content=question)],
         }
         final_state = self.app.invoke(inputs)
         last_message = final_state["messages"][-1]
