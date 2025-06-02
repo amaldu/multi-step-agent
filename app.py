@@ -52,6 +52,7 @@ def python_interpreter(code: str):
 
 @tool
 def is_reversed(text: str) -> bool:
+    """ This function reverses common terms and tries to find out if the question is reversed, then reads it"""
     common_words = ["the", "you", "me", "if"]
     reversed_words = [word[::-1] for word in common_words]
     return sum(word in text for word in reversed_words) >= 2  
