@@ -13,6 +13,10 @@ from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from langgraph.prebuilt import ToolNode
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_tavily import TavilySearch
+from langchain_community.utilities import ArxivAPIWrapper,WikipediaAPIWrapper
+
+from langchain_community.tools import ArxivQueryRun,WikipediaQueryRun
+
 from langchain_core.tools import tool
 import os
 from dotenv import load_dotenv
@@ -39,7 +43,17 @@ def multiply(a: int, b: int):
     """Multiplies two numbers"""
     return a * b  
 tavily_search = TavilySearch(tavily_api_key=TAVILY_KEY, max_results=5, topic="general", include_answer=True)
-tools = [add, multiply, tavily_search]
+arxiv_wrapper=ArxivAPIWrapper(top_k_results=1,doc_content_chars_max=300)
+
+arxiv_tool=ArxivQueryRun(api_wrapper=arxiv_wrapper)
+
+
+
+api_wrapper=WikipediaAPIWrapper(top_k_results=1,doc_content_chars_max=300)
+
+wiki_tool=WikipediaQueryRun(api_wrapper=api_wrapper)
+
+tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool]
 
 ### ---------------------------------------------------###
 
