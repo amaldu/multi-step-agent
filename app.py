@@ -14,8 +14,9 @@ from langgraph.prebuilt import ToolNode
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_tavily import TavilySearch
 from langchain_community.utilities import ArxivAPIWrapper,WikipediaAPIWrapper
-
+from langchain_experimental.tools import PythonREPLTool
 from langchain_community.tools import ArxivQueryRun,WikipediaQueryRun
+from langchain_core.runnables import RunnableLambda
 
 from langchain_core.tools import tool
 import os
@@ -42,6 +43,20 @@ def add(a: int, b: int):
 def multiply(a: int, b: int):
     """Multiplies two numbers"""
     return a * b  
+
+@tool
+def python_interpreter(code: str):
+    """Execute python code and return output."""
+    repl = PythonREPLTool()
+    return repl.run(code)
+
+@tool
+def is_reversed(text: str) -> bool:
+    common_words = ["the", "you", "me", "if"]
+    reversed_words = [word[::-1] for word in common_words]
+    return sum(word in text for word in reversed_words) >= 2  
+
+
 tavily_search = TavilySearch(tavily_api_key=TAVILY_KEY, max_results=5, topic="general", include_answer=True)
 arxiv_wrapper=ArxivAPIWrapper(top_k_results=1,doc_content_chars_max=300)
 
@@ -53,7 +68,7 @@ api_wrapper=WikipediaAPIWrapper(top_k_results=1,doc_content_chars_max=300)
 
 wiki_tool=WikipediaQueryRun(api_wrapper=api_wrapper)
 
-tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool]
+tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
 
 ### ---------------------------------------------------###
 
@@ -94,9 +109,17 @@ class BasicAgent:
                                             """
             )
             time.sleep(12)
-
-            response = self.llm.invoke([system_prompt] + state["messages"])
-            return {"messages": [response]}
+            try:
+                response = self.llm.invoke([system_prompt] + state["messages"])
+                return {"messages": [response]}
+            except Exception as e:
+                if "429" in str(e):
+                    print("Rate limit hit. Sleeping extra to avoid rate limit...")
+                    time.sleep(20)
+                    response = self.llm.invoke([system_prompt] + state["messages"])
+                    return {"messages": [response]}
+                else:
+                    raise e
 
         def should_continue(state: AgentState):
             messages = state["messages"]
@@ -124,11 +147,11 @@ class BasicAgent:
         graph.add_edge("tools", "mr_agent")
         self.app = graph.compile()
 
-    def __call__(self, question: str, **kwargs) -> str:
+    def __call__(self, question: str) -> str:
         print(f"Agent received question: {question}")
         inputs = {
             "question": question,
-            "messages": [HumanMessage(content=question)],
+            "messages": [],
         }
         final_state = self.app.invoke(inputs)
         last_message = final_state["messages"][-1]
