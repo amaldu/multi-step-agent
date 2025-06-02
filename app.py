@@ -148,16 +148,19 @@ class BasicAgent:
         graph.add_edge("tools", "mr_agent")
         self.app = graph.compile()
 
-    def __call__(self, question: str) -> str:
+    def __call__(self, question: str = "", **kwargs) -> str:
         print(f"Agent received question: {question}")
+        
         inputs = {
             "question": question,
             "messages": [],
         }
+
         final_state = self.app.invoke(inputs)
         last_message = final_state["messages"][-1]
         print(f"Final answer: {last_message.content}")
         return last_message.content
+
 
     
     
