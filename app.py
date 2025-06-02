@@ -4,7 +4,47 @@ import requests
 import inspect
 import pandas as pd
 import time
-from agent import BasicAgent
+
+### ---------------------------------------------------###
+from typing import Optional
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+from langchain_core.messages import SystemMessage, BaseMessage
+from langgraph.prebuilt import ToolNode
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_tavily import TavilySearch
+from langchain_core.tools import tool
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_GENAI_API_TOKEN")
+TAVILY_KEY = os.getenv("AGENT_TAVILY_API_KEY")
+
+from typing import TypedDict, Sequence, Annotated
+
+class AgentState(TypedDict):
+    question: Optional[str]
+    last_ai_message: Optional[str]
+    final_answer: Optional[str]
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+
+# Herramientas
+@tool
+def add(a: int, b: int):
+    """Adds two numbers"""
+    return a + b
+
+@tool
+def multiply(a: int, b: int):
+    """Multiplies two numbers"""
+    return a * b  # Corrige: antes decía `a + b`
+
+tavily_search = TavilySearch(tavily_api_key=TAVILY_KEY, max_results=5, topic="general", include_answer=True)
+tools = [add, multiply, tavily_search]
+
+### ---------------------------------------------------###
+
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -12,15 +52,68 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 
 # --- Basic Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
-# class BasicAgent:
-#     def __init__(self):
-#         print("BasicAgent initialized.")
-#     def __call__(self, question: str) -> str:
-#         print(f"Agent received question (first 50 chars): {question[:50]}...")
-#         fixed_answer = "This is a default answer."
-#         print(f"Agent returning fixed answer: {fixed_answer}")
-#         return fixed_answer
+class BasicAgent:
+    def __init__(self):
+        print("BasicAgent initialized.")
 
+        # LLM con herramientas
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=0,
+            google_api_key=GOOGLE_API_KEY
+        ).bind_tools(tools)
+
+        def model_call(state: AgentState) -> AgentState:
+            system_prompt = SystemMessage(content=
+                                        """You are a general AI assistant. 
+                                            I will ask you a question. 
+                                            Report your thoughts, and give your FINAL ANSWER directly without using any template. 
+                                            YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. 
+                                            If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
+                                            If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
+                                            If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.""")
+
+            response = self.llm.invoke([system_prompt] + state["messages"])
+            return {"messages": [response]}
+
+        def should_continue(state: AgentState):
+            messages = state["messages"]
+            last_message = messages[-1]
+            if not last_message.tool_calls:
+                return "end"
+            else:
+                return "continue"
+
+        graph = StateGraph(AgentState)
+        graph.add_node("mr_agent", model_call)
+        graph.add_node("tools", ToolNode(tools=tools))
+
+        graph.set_entry_point("mr_agent")
+
+        graph.add_conditional_edges(
+            "mr_agent",
+            should_continue,
+            {
+                "continue": "tools",
+                "end": END,
+            }
+        )
+
+        graph.add_edge("tools", "mr_agent")
+        self.app = graph.compile()
+
+    def __call__(self, question: str) -> str:
+        print(f"Agent received question: {question}")
+        inputs = {
+            "question": question,
+            "messages": [],
+        }
+        final_state = self.app.invoke(inputs)
+        last_message = final_state["messages"][-1]
+        print(f"Final answer: {last_message.content}")
+        return last_message.content
+    
+    
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the BasicAgent on them, submits all answers,
