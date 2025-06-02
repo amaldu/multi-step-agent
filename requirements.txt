@@ -12,3 +12,4 @@ langchain_experimental
 pandas
 openpyxl
 tabulate
+arxiv
