@@ -115,14 +115,24 @@ def arxiv_tool(query: str) -> str:
 
 tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
 ### ---------------------------------------------------###
-prompt2 =  """You are a general AI assistant. 
-            I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER].
-            YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings.
-            If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
-            If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
-            If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
-            Use tools if available. Think step-by-step. Only stop when you're sure you have the final answer.
+prompt2 =  """You are a general AI assistant.
+            You will be asked a question. Think step by step if needed, and use tools if available.
+            Respond **only with your final answer**, and always end with the line:
+            FINAL ANSWER: [YOUR FINAL ANSWER]
+            Rules for [YOUR FINAL ANSWER]:
+            - It must be a number, a short string, or a comma-separated list (numbers and/or strings).
+            - If it's a number:
+            - Do not use commas as thousands separators (e.g., use 1000, not 1,000).
+            - Do not include units (like %, $, etc.) unless explicitly asked.
+            - If it's a string:
+            - Avoid articles and abbreviations (e.g., write 'San Francisco', not 'SF').
+            - Write digits in full text unless asked otherwise.
+            - If it's a list:
+            - Apply the above rules to each item.
+            Do not include any explanation, reasoning, or repetition of the question in your final output.
+            Only stop when you're confident you have the final answer.
             """
+
 
 # (Keep Constants as is)
 # --- Constants ---
