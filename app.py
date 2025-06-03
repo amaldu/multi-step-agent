@@ -6,7 +6,7 @@ import pandas as pd
 import time
 
 ### ---------------------------------------------------###
-from typing import Optional
+from typing import Optional, TypedDict, Sequence, Annotated
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
@@ -19,14 +19,13 @@ from langchain_community.tools import ArxivQueryRun,WikipediaQueryRun
 from langchain_core.runnables import RunnableLambda
 
 from langchain_core.tools import tool
+import time
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_GENAI_API_TOKEN")
 TAVILY_KEY = os.getenv("AGENT_TAVILY_API_KEY")
-
-from typing import TypedDict, Sequence, Annotated
 
 class AgentState(TypedDict):
     question: Optional[str]
@@ -68,22 +67,62 @@ def is_reversed(text: str) -> str:
         return text 
 
 
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.document_loaders import WikipediaLoader
+from langchain_community.document_loaders import ArxivLoader
 
-tavily_search = TavilySearch(tavily_api_key=TAVILY_KEY, max_results=5, topic="general", include_answer=True)
-arxiv_wrapper=ArxivAPIWrapper(top_k_results=1,doc_content_chars_max=300)
+@tool
+def wiki_tool(query: str) -> str:
+    """Search Wikipedia for a query and return maximum 2 results.
+    
+    Args:
+        query: The search query."""
+    search_docs = WikipediaLoader(query=query, load_max_docs=2).load()
+    formatted_search_docs = "\n\n---\n\n".join(
+        [
+            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+            for doc in search_docs
+        ])
+    return {"wiki_results": formatted_search_docs}
 
-arxiv_tool=ArxivQueryRun(api_wrapper=arxiv_wrapper)
+@tool
+def tavily_search(query: str) -> str:
+    """Search Tavily for a query and return maximum 3 results.
+    
+    Args:
+        query: The search query."""
+    search_docs = TavilySearchResults(max_results=3, tavily_api_key=TAVILY_KEY).invoke(query=query)
+    formatted_search_docs = "\n\n---\n\n".join(
+        [
+            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+            for doc in search_docs
+        ])
+    return {"web_results": formatted_search_docs}
 
-
-
-api_wrapper=WikipediaAPIWrapper(top_k_results=1,doc_content_chars_max=300)
-
-wiki_tool=WikipediaQueryRun(api_wrapper=api_wrapper)
+@tool
+def arxiv_tool(query: str) -> str:
+    """Search Arxiv for a query and return maximum 3 result.
+    
+    Args:
+        query: The search query."""
+    search_docs = ArxivLoader(query=query, load_max_docs=3).load()
+    formatted_search_docs = "\n\n---\n\n".join(
+        [
+            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content[:1000]}\n</Document>'
+            for doc in search_docs
+        ])
+    return {"arvix_results": formatted_search_docs}
 
 tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
-
 ### ---------------------------------------------------###
-
+prompt2 =  """You are a general AI assistant. 
+            I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER].
+            YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings.
+            If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
+            If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
+            If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
+            Use tools if available. Think step-by-step. Only stop when you're sure you have the final answer.
+            """
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -94,63 +133,100 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
+        self.prompt = prompt2
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0,
             google_api_key=GOOGLE_API_KEY
         ).bind_tools(tools)
 
-    def model_call(state: AgentState) -> AgentState:
-        system_prompt = SystemMessage(content=
-                                    """You are a general AI assistant. 
-                                        I will ask you a question. 
-                                        Report your thoughts, and give your FINAL ANSWER directly without using any template. 
-                                        YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. 
-                                        If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
-                                        If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
-                                        If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.""")
 
+        graph = StateGraph(AgentState)
+        graph.add_node("mr_agent", self.model_call)
+        graph.add_node("tools", ToolNode(tools=tools))
+
+        graph.set_entry_point("mr_agent")
+
+        graph.add_conditional_edges(
+            "mr_agent",
+            self.should_continue,
+            {
+                "continue": "tools",
+                "end": END,
+            }
+        )
+
+        graph.add_edge("tools", "mr_agent")
+
+        self.app = graph.compile()
+
+    def model_call(self, state: AgentState) -> AgentState:
+        system_prompt = SystemMessage(content= self.prompt)
         response = self.llm.invoke([system_prompt] + state["messages"])
         return {"messages": [response]}
 
-    def should_continue(state: AgentState):
+    def should_continue(self, state: AgentState):
         messages = state["messages"]
         last_message = messages[-1]
-        if not last_message.tool_calls:
-            return "end"
-        else:
+
+        if last_message.tool_calls:
+            print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
             return "continue"
 
-    graph = StateGraph(AgentState)
-    graph.add_node("mr_agent", model_call)
-    graph.add_node("tools", ToolNode(tools=tools))
+        if "Final answer:" in last_message.content:
+            print("[DEBUG] Detected final answer.")
+            return "end"
 
-    graph.set_entry_point("mr_agent")
+        print("[DEBUG] No tool call or final answer, ending by default.")
+        return "end" 
+    
 
-    graph.add_conditional_edges(
-        "mr_agent",
-        should_continue,
-        {
-            "continue": "tools",
-            "end": END,
-        }
-    )
+    def stream_and_print(self, inputs):
+        stream = self.app.stream(inputs, stream_mode="values")
+        all_messages = []
+        for i, step in enumerate(stream):
+            messages = step["messages"]
+            last_msg = messages[-1]
+            all_messages = messages
 
-    graph.add_edge("tools", "mr_agent")
-    app = graph.compile()
+            print(f"\n--- Step {i+1} ---")
+            print(f"[Agent message] {last_msg.content}")
 
-    def __call__(self, question: str, **kwargs) -> str:
+            if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                for tool_call in last_msg.tool_calls:
+                    print(f"[Tool call] name: {tool_call.name}")
+                    print(f"[Tool call] args: {tool_call.args}")
+
+        return all_messages
+
+
+    def __call__(self, question: str, stream: bool = False, file_name = None, retries: int = 3, wait_seconds: int = 20, **kwargs) -> str:
         print(f"Agent received question: {question}")
         inputs = {
             "question": question,
             "messages": [HumanMessage(content=question)],
         }
-        final_state = self.app.invoke(inputs)
-        last_message = final_state["messages"][-1]
-        print(f"Final answer: {last_message.content}")
-        return last_message.content
 
-    
+        for attempt in range(retries):
+            try:
+                if stream:
+                    self.print_stream(inputs)
+                    return "[streaming completed]"
+                else:
+                    final_state = self.app.invoke(inputs)
+                    last_message = final_state["messages"][-1]
+                    print(f"Final answer: {last_message.content}")
+                    return last_message.content
+            except Exception as e:
+                if "rate" in str(e).lower() or "429" in str(e):
+                    print(f"[RateLimit] Attempt {attempt+1}/{retries} hit rate limit. Retrying in {wait_seconds} seconds...")
+                    time.sleep(wait_seconds)
+                else:
+                    raise e  # otras excepciones, relánzalas
+        raise RuntimeError("Exceeded retry limit due to rate limiting.")
+
+
+#### ----------------------------------------------------####
     
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
