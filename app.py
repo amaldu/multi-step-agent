@@ -66,52 +66,37 @@ def is_reversed(text: str) -> str:
     else:
         return text 
 
+tavily_search = TavilySearch(
+    tavily_api_key=TAVILY_KEY,
+    max_results=5,
+    topic="general",
+    include_answer=True,
+    # include_images=False,
+    # include_image_descriptions=False,
+    search_depth="basic",
+    # time_range="day",
+    # include_domains=None,
+    exclude_domains=["wikipedia.org"]
+    )
 
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_community.document_loaders import WikipediaLoader
-from langchain_community.document_loaders import ArxivLoader
+arxiv_wrapper=ArxivAPIWrapper(
+    top_k_results=1,
+    doc_content_chars_max=300
+    )
 
-@tool
-def wiki_tool(query: str) -> str:
-    """Search Wikipedia for a query and return maximum 2 results.
-    
-    Args:
-        query: The search query."""
-    search_docs = WikipediaLoader(query=query, load_max_docs=2).load()
-    formatted_search_docs = "\n\n---\n\n".join(
-        [
-            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
-            for doc in search_docs
-        ])
-    return {"wiki_results": formatted_search_docs}
+arxiv_tool=ArxivQueryRun(
+    api_wrapper=arxiv_wrapper
+    )
 
-@tool
-def tavily_search(query: str) -> str:
-    """Search Tavily for a query and return maximum 3 results.
-    
-    Args:
-        query: The search query."""
-    search_docs = TavilySearchResults(max_results=3, tavily_api_key=TAVILY_KEY).invoke(query=query)
-    formatted_search_docs = "\n\n---\n\n".join(
-        [
-            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
-            for doc in search_docs
-        ])
-    return {"web_results": formatted_search_docs}
+api_wrapper=WikipediaAPIWrapper(
+    top_k_results=1,
+    doc_content_chars_max=300
+    )
 
-@tool
-def arxiv_tool(query: str) -> str:
-    """Search Arxiv for a query and return maximum 3 result.
-    
-    Args:
-        query: The search query."""
-    search_docs = ArxivLoader(query=query, load_max_docs=3).load()
-    formatted_search_docs = "\n\n---\n\n".join(
-        [
-            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content[:1000]}\n</Document>'
-            for doc in search_docs
-        ])
-    return {"arvix_results": formatted_search_docs}
+wiki_tool=WikipediaQueryRun(
+    api_wrapper=api_wrapper
+    )
+
 
 tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
 ### ---------------------------------------------------###
