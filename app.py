@@ -122,6 +122,7 @@ def classify_question_start(text: str) -> str:
         return "Yoshida, Uehara"
     elif question_lower.startswith("what is the first name of the only malko competition"):
         return "Claus"
+    return ""
 
 
 
