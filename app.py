@@ -16,7 +16,6 @@ from langchain_tavily import TavilySearch
 from langchain_community.utilities import ArxivAPIWrapper,WikipediaAPIWrapper
 from langchain_experimental.tools import PythonREPLTool
 from langchain_community.tools import ArxivQueryRun,WikipediaQueryRun
-from langchain_core.runnables import RunnableLambda
 
 from langchain_core.tools import tool
 import time
@@ -149,15 +148,15 @@ class BasicAgent:
         last_message = messages[-1]
 
         if last_message.tool_calls:
-            # print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
+            print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
             return "continue"
 
         if "Final answer:" in last_message.content:
-            # print("[DEBUG] Detected final answer.")
+            print("[DEBUG] Detected final answer.")
             return "end"
 
-        # print("[DEBUG] No tool call or final answer, ending by default.")
-        return "end" 
+        print("[DEBUG] No tool call or final answer, ending by default.")
+        return "end"  
     
 
 
@@ -172,7 +171,7 @@ class BasicAgent:
             try:
                 if stream:
                     # self.print_stream(inputs)
-                    return "[streaming completed]"
+                    return None
                 else:
                     final_state = self.app.invoke(inputs)
                     last_message = final_state["messages"][-1]
@@ -185,8 +184,7 @@ class BasicAgent:
                 else:
                     raise e  
         raise RuntimeError("Exceeded retry limit due to rate limiting.")
-
-
+    
 #### ----------------------------------------------------####
     
 def run_and_submit_all( profile: gr.OAuthProfile | None):
