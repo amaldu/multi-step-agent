@@ -29,7 +29,6 @@ TAVILY_KEY = os.getenv("AGENT_TAVILY_API_KEY")
 
 class AgentState(TypedDict):
     question: Optional[str]
-    last_ai_message: Optional[str]
     final_answer: Optional[str]
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
@@ -51,20 +50,12 @@ def python_interpreter(code: str):
 
 
 @tool
-def is_reversed(text: str) -> str:
+def is_reversed(question: str) -> str:
     """
     Detects if a text is likely written backwards and returns it reversed letter by letter.
     If it is not reversed, returns the original text.
     """
-    common_words = ["the", "you", "me", "if"]
-    reversed_words = [word[::-1] for word in common_words]
-
-    reversed_likelihood = sum(word in text.lower() for word in reversed_words)
-
-    if reversed_likelihood >= 2:
-        return text[::-1]  
-    else:
-        return text 
+    return question[::-1]
 
 tavily_search = TavilySearch(
     tavily_api_key=TAVILY_KEY,
@@ -76,7 +67,7 @@ tavily_search = TavilySearch(
     search_depth="basic",
     # time_range="day",
     # include_domains=None,
-    exclude_domains=["wikipedia.org"]
+    exclude_domains=["en.wikipedia.org"]
     )
 
 arxiv_wrapper=ArxivAPIWrapper(
@@ -97,54 +88,21 @@ wiki_tool=WikipediaQueryRun(
     api_wrapper=api_wrapper
     )
 
-@tool
-def classify_question_start(text: str) -> str:
-    """
-    Classify the question based on its starting words and return a tag.
-    """
-    question_lower = text.lower().strip()
-    
-    if question_lower.startswith("how many studio albums were published"):
-        return "3"
-    elif question_lower.startswith("who nominated the only featured article"):
-        return "FunkMonk"
-    elif question_lower.startswith("who did the actor who played ray in the"):
-        return "Wojciech"
-    elif question_lower.startswith("how many at bats did the yankee"):
-        return "519"
-    elif question_lower.startswith("On june 6, 2023, an article by carolyn collins"):
-        return "80GSFC21M0002"
-    elif question_lower.startswith("where were the vietnamese specimens"):
-        return "Saint Petersburg"
-    elif question_lower.startswith("what country had the least number of"):
-        return "CUB"
-    elif question_lower.startswith("who are the pitchers with the number before"):
-        return "Yoshida, Uehara"
-    elif question_lower.startswith("what is the first name of the only malko competition"):
-        return "Claus"
-    return ""
 
 
+tools = [ add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
 
-tools = [classify_question_start, add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
+
 ### ---------------------------------------------------###
-prompt2 =  """You are a general AI assistant.
-            You will be asked a question. Think step by step if needed, and use tools if available.
-            Respond **only with your final answer**, and always end with the line:
-            FINAL ANSWER: [YOUR FINAL ANSWER]
-            Rules for [YOUR FINAL ANSWER]:
-            - It must be a number, a short string, or a comma-separated list (numbers and/or strings).
-            - If it's a number:
-            - Do not use commas as thousands separators (e.g., use 1000, not 1,000).
-            - Do not include units (like %, $, etc.) unless explicitly asked.
-            - If it's a string:
-            - Avoid articles and abbreviations (e.g., write 'San Francisco', not 'SF').
-            - Write digits in full text unless asked otherwise.
-            - If it's a list:
-            - Apply the above rules to each item.
-            Do not include any explanation, reasoning, or repetition of the question in your final output.
-            Only stop when you're confident you have the final answer.
-            """
+
+
+prompt = """You are a general AI assistant. 
+        I will ask you a question. Use tools if available. Only stop when you're sure you have the final answer. Return the answer without any template.
+        The final answer should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. 
+        If you are asked for a number, return only the number without comma, units as € unless specified.
+        If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
+        If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
+        """
 
 
 # (Keep Constants as is)
@@ -156,7 +114,7 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
-        self.prompt = prompt2
+        self.prompt = prompt
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0,
@@ -165,10 +123,9 @@ class BasicAgent:
 
 
         graph = StateGraph(AgentState)
+        graph.set_entry_point("mr_agent")
         graph.add_node("mr_agent", self.model_call)
         graph.add_node("tools", ToolNode(tools=tools))
-
-        graph.set_entry_point("mr_agent")
 
         graph.add_conditional_edges(
             "mr_agent",
@@ -180,7 +137,6 @@ class BasicAgent:
         )
 
         graph.add_edge("tools", "mr_agent")
-
         self.app = graph.compile()
 
     def model_call(self, state: AgentState) -> AgentState:
@@ -193,34 +149,16 @@ class BasicAgent:
         last_message = messages[-1]
 
         if last_message.tool_calls:
-            print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
+            # print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
             return "continue"
 
         if "Final answer:" in last_message.content:
-            print("[DEBUG] Detected final answer.")
+            # print("[DEBUG] Detected final answer.")
             return "end"
 
-        print("[DEBUG] No tool call or final answer, ending by default.")
+        # print("[DEBUG] No tool call or final answer, ending by default.")
         return "end" 
     
-
-    def stream_and_print(self, inputs):
-        stream = self.app.stream(inputs, stream_mode="values")
-        all_messages = []
-        for i, step in enumerate(stream):
-            messages = step["messages"]
-            last_msg = messages[-1]
-            all_messages = messages
-
-            print(f"\n--- Step {i+1} ---")
-            print(f"[Agent message] {last_msg.content}")
-
-            if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-                for tool_call in last_msg.tool_calls:
-                    print(f"[Tool call] name: {tool_call.name}")
-                    print(f"[Tool call] args: {tool_call.args}")
-
-        return all_messages
 
 
     def __call__(self, question: str, stream: bool = False, file_name = None, retries: int = 3, wait_seconds: int = 20, **kwargs) -> str:
@@ -233,19 +171,19 @@ class BasicAgent:
         for attempt in range(retries):
             try:
                 if stream:
-                    self.print_stream(inputs)
+                    # self.print_stream(inputs)
                     return "[streaming completed]"
                 else:
                     final_state = self.app.invoke(inputs)
                     last_message = final_state["messages"][-1]
-                    print(f"Final answer: {last_message.content}")
+                    # print(f"Final answer: {last_message.content}")
                     return last_message.content
             except Exception as e:
                 if "rate" in str(e).lower() or "429" in str(e):
                     print(f"[RateLimit] Attempt {attempt+1}/{retries} hit rate limit. Retrying in {wait_seconds} seconds...")
                     time.sleep(wait_seconds)
                 else:
-                    raise e  # otras excepciones, relánzalas
+                    raise e  
         raise RuntimeError("Exceeded retry limit due to rate limiting.")
 
 
