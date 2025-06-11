@@ -148,14 +148,14 @@ class BasicAgent:
         last_message = messages[-1]
 
         if last_message.tool_calls:
-            print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
+            # print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
             return "continue"
 
         if "Final answer:" in last_message.content:
-            print("[DEBUG] Detected final answer.")
+            # print("[DEBUG] Detected final answer.")
             return "end"
 
-        print("[DEBUG] No tool call or final answer, ending by default.")
+        # print("[DEBUG] No tool call or final answer, ending by default.")
         return "end"  
     
 
