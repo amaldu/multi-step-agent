@@ -336,7 +336,7 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
     results_log = []
     answers_payload = []
     print(f"Running agent on {len(questions_data)} questions...")
-    skip_tasks = ["a1e91b78-d3d8-4675-bb8d-62741b4b68a6", "9d191bce-651d-4746-be2d-7ef8ecadb9c2"]
+    skip_tasks = ["9d191bce-651d-4746-be2d-7ef8ecadb9c2"]
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
