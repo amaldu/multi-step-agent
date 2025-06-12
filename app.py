@@ -20,9 +20,9 @@ import re
 from langchain_core.tools import tool
 
 import requests
-from PIL import Image
-from io import BytesIO
-import IPython.display as display
+# from PIL import Image
+# from io import BytesIO
+# import IPython.display as display
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 import time, datetime
@@ -194,7 +194,7 @@ import re
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
-        self.prompt = prompt1
+        self.prompt = prompt
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0,
