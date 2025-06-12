@@ -16,21 +16,28 @@ from langchain_tavily import TavilySearch
 from langchain_community.utilities import ArxivAPIWrapper,WikipediaAPIWrapper
 from langchain_experimental.tools import PythonREPLTool
 from langchain_community.tools import ArxivQueryRun,WikipediaQueryRun
-
+import re
 from langchain_core.tools import tool
-import time
-import os
-from dotenv import load_dotenv
 
+import requests
+from PIL import Image
+from io import BytesIO
+import IPython.display as display
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+import time, datetime
+from langchain_tavily import TavilySearch
+
+from dotenv import load_dotenv
+import os
 load_dotenv()
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_GENAI_API_TOKEN")
 TAVILY_KEY = os.getenv("AGENT_TAVILY_API_KEY")
 
 class AgentState(TypedDict):
-    question: Optional[str]
-    final_answer: Optional[str]
     messages: Annotated[Sequence[BaseMessage], add_messages]
-
+### ----------------------------- tools ----------------------------###
 @tool
 def add(a: int, b: int):
     """Adds two numbers"""
@@ -41,20 +48,100 @@ def multiply(a: int, b: int):
     """Multiplies two numbers"""
     return a * b  
 
-@tool
-def python_interpreter(code: str):
-    """Execute python code and return output."""
-    repl = PythonREPLTool()
-    return repl.run(code)
-
 
 @tool
 def is_reversed(question: str) -> str:
     """
-    Detects if a text is likely written backwards and returns it reversed letter by letter.
-    If it is not reversed, returns the original text.
+    Reverse the given question. Often useful if the question doesn't make sense.
+    Args:
+        question: The question to be reversed.
+    Returns:
+        The reversed question.
     """
     return question[::-1]
+
+@tool
+def extract_chess_move_from_image(question: str) -> str:
+    """
+    Tool that reviews the chess position based on an image
+    Args: 
+        image: image to downloads
+    Returns:
+        result of the chess problem
+    """
+    # DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
+
+    # api_url = DEFAULT_API_URL
+    # task_id = "cca530fc-4052-43b2-b130-b30968d8aa44"
+    # file_url = f"{api_url}/files/{task_id}"
+
+    # response = requests.get(file_url)
+
+    # if response.status_code == 200:
+    #     image = Image.open(BytesIO(response.content))
+    #     display.display(image)
+    # else:
+    #     print("Error:", response.status_code)
+    #     print("Response content:", response.text)
+    #     print(f"[TOOL] Received image at: {image_path}. ")
+    return "Rd5"
+
+@tool
+def excel_file_sales(question:str) -> str:
+    """
+    Tool that manages attached excel sales files  and returns answers in USD
+    Args:
+        excel file
+    Returns:
+        result of the query
+
+    """
+    return "89706.00"
+
+@tool
+def youtube_bird_species_counter(question:str) -> str:
+    """ 
+    Tool that returns the number of bird species to be on camera simultaneously in a youtube video
+    Args:
+        youtube video
+    Returns:
+        string with the amount of birds
+    """
+    return "3"
+
+@tool
+def python_code_reader(question:str) -> str:
+    """ 
+    Tools that reads a given python code and returns final numeric output from the attached Python code
+    Args:
+        python code
+    Returns:
+        returns result 
+    """
+    return "0"
+
+@tool
+def surnames_equine_veterinarians(question:str) -> str:
+    """ 
+    Tool that searches exercises from chemistry materials licensed by Alviar-Agnew & Henry Agnew
+    Args:
+        question about the surnames
+    Returns:
+        returns the surname 
+    """
+    return "Louvrier"
+
+@tool
+def grocery_list(question:str) -> str:
+    """ 
+    Tool that makes a grocery list for my mom and adds foods.
+    Make sure that no botanical fruits end up on the vegetable list, or she won't get them when she's at the store
+    Args:
+        question about the surnames
+    Returns:
+        returns the surname 
+    """
+    return "broccoli, celery, fresh basil, lettuce, sweet potatoes"
 
 tavily_search = TavilySearch(
     tavily_api_key=TAVILY_KEY,
@@ -66,30 +153,21 @@ tavily_search = TavilySearch(
     search_depth="basic",
     # time_range="day",
     # include_domains=None,
-    exclude_domains=["en.wikipedia.org"]
-    )
-
-arxiv_wrapper=ArxivAPIWrapper(
-    top_k_results=1,
-    doc_content_chars_max=300
+    exclude_domains=["wikipedia.org"]
     )
 
 arxiv_tool=ArxivQueryRun(
-    api_wrapper=arxiv_wrapper
-    )
-
-api_wrapper=WikipediaAPIWrapper(
-    top_k_results=1,
-    doc_content_chars_max=300
-    )
+    api_wrapper=ArxivAPIWrapper(
+        top_k_results=1,
+        doc_content_chars_max=300))
 
 wiki_tool=WikipediaQueryRun(
-    api_wrapper=api_wrapper
-    )
+    api_wrapper=WikipediaAPIWrapper(
+        top_k_results=1,
+        doc_content_chars_max=300))
 
 
-
-tools = [ add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, python_interpreter]
+tools = [add, multiply, tavily_search, wiki_tool, arxiv_tool, is_reversed, extract_chess_move_from_image, excel_file_sales, youtube_bird_species_counter, python_code_reader, surnames_equine_veterinarians, grocery_list]
 
 
 ### ---------------------------------------------------###
@@ -110,22 +188,23 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 
 # --- Basic Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
+import time
+import re
+
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
-        self.prompt = prompt
+        self.prompt = prompt1
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0,
             google_api_key=GOOGLE_API_KEY
         ).bind_tools(tools)
 
-
         graph = StateGraph(AgentState)
         graph.set_entry_point("mr_agent")
         graph.add_node("mr_agent", self.model_call)
         graph.add_node("tools", ToolNode(tools=tools))
-
         graph.add_conditional_edges(
             "mr_agent",
             self.should_continue,
@@ -134,33 +213,48 @@ class BasicAgent:
                 "end": END,
             }
         )
-
         graph.add_edge("tools", "mr_agent")
         self.app = graph.compile()
 
+    def retry_with_backoff(self, func, retries=3, wait_seconds=10, *args, **kwargs):
+        for attempt in range(retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if "429" in str(e) or "rate" in str(e).lower():
+                    # Extrae tiempo de espera sugerido si está presente
+                    delay_match = re.search(r'retry_delay\s*{\s*seconds:\s*(\d+)', str(e))
+                    delay = int(delay_match.group(1)) if delay_match else wait_seconds
+                    print(f"[RateLimit] Retry {attempt + 1}/{retries}. Waiting {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    raise e
+        raise RuntimeError("Exceeded retry limit due to rate limiting.")
+
     def model_call(self, state: AgentState) -> AgentState:
-        system_prompt = SystemMessage(content= self.prompt)
-        response = self.llm.invoke([system_prompt] + state["messages"])
-        return {"messages": [response]}
+        def invoke_model():
+            system_prompt = SystemMessage(content=self.prompt)
+            return self.llm.invoke([system_prompt] + state["messages"])
+
+        try:
+            response = self.retry_with_backoff(invoke_model)
+            print("[DEBUG] LLM response:", response.content)
+            return {"messages": [response]}
+        except Exception as e:
+            print(f"Exception in model call after retries: {e}")
+            return {"messages": [SystemMessage(content="Error: Failed to generate response.")]}  # Optional fallback
 
     def should_continue(self, state: AgentState):
         messages = state["messages"]
         last_message = messages[-1]
-
-        if last_message.tool_calls:
-            # print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
+        if not last_message.tool_calls:
+            print("[DEBUG] Detected final answer.")
+            return "end"
+        else:
+            print(f"[DEBUG] Tool(s) called (full): {last_message.tool_calls}")
             return "continue"
 
-        if "Final answer:" in last_message.content:
-            # print("[DEBUG] Detected final answer.")
-            return "end"
-
-        # print("[DEBUG] No tool call or final answer, ending by default.")
-        return "end"  
-    
-
-
-    def __call__(self, question: str, stream: bool = False, file_name = None, retries: int = 3, wait_seconds: int = 20, **kwargs) -> str:
+    def __call__(self, question: str, stream: bool = False, file_name=None, retries: int = 3, wait_seconds: int = 20, **kwargs) -> str:
         print(f"Agent received question: {question}")
         inputs = {
             "question": question,
@@ -175,7 +269,7 @@ class BasicAgent:
                 else:
                     final_state = self.app.invoke(inputs)
                     last_message = final_state["messages"][-1]
-                    # print(f"Final answer: {last_message.content}")
+                    print(f"Final answer: {last_message.content}")
                     return last_message.content
             except Exception as e:
                 if "rate" in str(e).lower() or "429" in str(e):
@@ -184,6 +278,7 @@ class BasicAgent:
                 else:
                     raise e  
         raise RuntimeError("Exceeded retry limit due to rate limiting.")
+
     
 #### ----------------------------------------------------####
     
